@@ -1,69 +1,133 @@
-# React + TypeScript + Vite
+# Solana Transaction Visualizer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A lightweight web tool to paste a Solana transaction signature and quickly inspect details: slot/time, fee payer, instructions, SOL/SPL token transfers, and logs. Built for developers and newcomers who want a fast, readable view without opening a full explorer.
 
-Currently, two official plugins are available:
+## Features
+- Paste a transaction signature and fetch details from the chosen cluster
+- Summary: slot, block time, status, fee, fee payer
+- Instructions: program, accounts, (basic) decoded info where possible
+- Transfers: SOL and SPL token deltas from pre/post balances
+- Logs: render log messages with error highlighting
+- Cluster selection: mainnet-beta (default), devnet, testnet
+- Custom RPC input (persisted locally)
+- Recent history: last 10 signatures in localStorage
+- Shareable link: `?tx=...&cluster=...`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
+- Vite + React + TypeScript
+- TailwindCSS (no extra UI library by default)
+- `@solana/web3.js` for RPC access
+- `@tanstack/react-query` for fetching and caching
+- `dayjs` for time formatting
 
-## Expanding the ESLint configuration
+## Decisions
+- Default cluster is `mainnet-beta` and the app remembers the last used cluster
+- Custom RPC input is enabled and persisted to localStorage
+- React Query is used for data fetching/cache
+- Pure Tailwind for UI
+- Recent history size is 10 items
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting Started
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Prerequisites:
+- Node.js 18+ and npm 9+
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+Install dependencies (from the project root where `package.json` lives):
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Start the dev server:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+npm run dev
+```
+
+Build for production:
+
+```
+npm run build
+```
+
+Preview the production build locally:
+
+```
+npm run preview
+```
+
+## Configuration
+
+Environment variables (optional, override the defaults):
+- `VITE_RPC_MAINNET_URL`
+- `VITE_RPC_DEVNET_URL`
+- `VITE_RPC_TESTNET_URL`
+
+Create a `.env` file in the project root if needed, for example:
+
+```
+VITE_RPC_MAINNET_URL=https://api.mainnet-beta.solana.com
+VITE_RPC_DEVNET_URL=https://api.devnet.solana.com
+VITE_RPC_TESTNET_URL=https://api.testnet.solana.com
+```
+
+Local persistence keys (suggested):
+- `tv.cluster` (last selected cluster)
+- `tv.rpc` (custom RPC URL)
+- `tv.history` (array of recent signatures, size 10)
+
+## Usage
+1) Paste a valid base58 transaction signature into the input
+2) Select a cluster (or provide a custom RPC)
+3) View summary, instructions, transfers, and logs in the result panel
+4) Share the current view by copying the URL with query params
+
+Edge cases handled:
+- Invalid signatures are rejected before RPC is called
+- `getTransaction` returning `null` shows guidance to check cluster/age
+- `blockTime` may be `null` and is shown as `N/A`
+- Versioned tx (v0) are supported with `maxSupportedTransactionVersion: 0`
+
+## Project Structure
+
+```
+src/
+  components/        # InputForm, SummaryCard, InstructionList, TransferList, LogViewer
+  utils/             # RPC calls, normalization, format helpers
+  types/             # shared TypeScript types
+  main.tsx           # app entry
+public/
+index.html
+```
+
+See `Note.md` for detailed architecture, parsing strategy, and roadmap.
+
+## Scripts
+- `dev` — start Vite dev server
+- `build` — build production bundle
+- `preview` — preview production build
+- `lint` — run ESLint (config in `eslint.config.js`)
+
+## Deployment
+
+Vercel is recommended for zero-config deployment:
+- Connect the repository
+- Framework preset: Vite
+- Build command: `npm run build`
+- Output directory: `dist`
+
+Alternatively, deploy the `dist/` folder on any static host.
+
+## Roadmap (High-Level)
+- Improve SPL-Token instruction decoding and params
+- Optional: import Anchor IDL to enhance log/event decoding
+- Resolve address lookup tables for v0 transactions to label accounts fully
+- Export JSON/CSV from Transfers/Instructions views
+- Optional PWA for offline access to local history
+
+## Contributing
+Small PRs and suggestions are welcome. Please keep scope focused and follow the existing code style. For bigger changes, open an issue or discussion first.
+
+## Acknowledgments
+- Solana Web3.js for RPC and transaction structures
+- The Solana developer community for docs and examples

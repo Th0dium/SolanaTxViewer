@@ -1,60 +1,62 @@
-# Transaction Visualizer – Ghi chú phát triển (Note)
+# Transaction Visualizer – Development Notes
 
-Mục tiêu: xây web tool đơn giản để dán transaction signature và xem nhanh chi tiết giao dịch trên Solana (slot/time, fee payer, instructions, transfers, logs), tối ưu tốc độ và độ dễ đọc.
+Goal: a lightweight web tool to paste a Solana transaction signature and quickly inspect details (slot/time, fee payer, instructions, transfers, logs) with a focus on speed and readability.
 
-## Phạm vi & Không phạm vi
-- Phạm vi: Frontend only, gọi RPC Solana để đọc/parse giao dịch và hiển thị.
-- Không phạm vi (MVP): viết smart contract, backend server, DB.
+## Scope & Non‑Goals
+- In scope: Frontend only, call Solana RPC to read/parse a transaction and render it.
+- Out of scope (MVP): on‑chain programs, backend services, databases.
 
 ## Tech Stack
 - Build/Framework: Vite + React + TypeScript
-- UI: TailwindCSS (+ optional: shadcn/ui hoặc Headless UI cho Tabs/Accordion/Toast)
+- UI: TailwindCSS (pure; avoid additional UI libs initially)
 - Solana: `@solana/web3.js`
-- Thời gian/format: `dayjs`
-- Data fetching/cache: React Query (hoặc Zustand + fetch tự viết nếu muốn nhẹ hơn)
-- Triển khai: Vercel (preview, public URL)
+- Time/format: `dayjs`
+- Data fetching/cache: React Query (chosen)
+- Deployment: Vercel (preview deploys, public URL)
 
-## Trạng thái repo hiện tại
-- Đang có cấu trúc lồng: `SolanaTxViewer/SolanaTxViewer/*` do khởi tạo Vite bên trong thư mục cùng tên.
-- Việc cần làm: flatten cấu trúc dự án về 1 cấp.
-  - Di chuyển toàn bộ nội dung trong `SolanaTxViewer/` (thư mục con) lên thư mục gốc dự án, giữ lại cặp `package.json` + `package-lock.json` đúng.
-  - Xóa `package-lock.json` “thừa” ở gốc (nếu có), rồi chạy lại `npm install` tại thư mục gốc mới.
+## Current Repo Status
+- Nested structure detected: `SolanaTxViewer/SolanaTxViewer/*` (Vite was scaffolded inside a folder with the same name).
+- Action item: flatten to a single‑level project.
+  - Move everything from the inner `SolanaTxViewer/` up to the repo root, keeping the correct `package.json` + `package-lock.json` together.
+  - Remove any extra lockfile at root and run `npm install` at the new root.
 
-## Cấu trúc thư mục (mục tiêu)
+## Target Directory Structure
 ```
 SolanaTxViewer/
   ├─ src/
   │  ├─ components/        # InputForm, SummaryCard, InstructionList, TransferList, LogViewer
-  │  ├─ utils/             # call RPC, parse/format
+  │  ├─ utils/             # RPC calls, parse/format helpers
   │  ├─ pages/ or main.tsx # entry
-  │  └─ types/             # định nghĩa type TS dùng chung
+  │  └─ types/             # shared TS types
   ├─ public/
   ├─ index.html
   ├─ package.json
-  ├─ Note.md               # file này
+  ├─ Note.md               # this file
   └─ README.md
 ```
 
-## Env & cấu hình
-- Cluster: `mainnet-beta` (default), `devnet` (tùy chọn), `testnet` (optional).
-- RPC endpoint mặc định:
+## Environment & Config
+- Clusters: `mainnet-beta` (default), `devnet` (optional), `testnet` (optional).
+- Persist last used cluster to `localStorage` (default to `mainnet-beta` on first load).
+- Default RPC endpoints:
   - Mainnet: `https://api.mainnet-beta.solana.com`
   - Devnet: `https://api.devnet.solana.com`
   - Testnet: `https://api.testnet.solana.com`
-- Cho phép user nhập custom RPC (ví dụ Helius/QuickNode) và lưu vào `localStorage`.
-- Biến môi trường (optional):
+- Allow a custom RPC input (e.g., Helius/QuickNode) and persist to `localStorage`.
+- Local persistence keys (suggested): `tv.cluster`, `tv.rpc`, `tv.history`
+- Optional env vars:
   - `VITE_RPC_MAINNET_URL`, `VITE_RPC_DEVNET_URL`, `VITE_RPC_TESTNET_URL`
 
-## Kiến trúc & Flow
-- Input: signature (base58), chọn cluster, optional custom RPC.
-- Validate: signature hợp lệ (base58, độ dài hợp lý), tránh ký tự lạ.
+## Architecture & Flow
+- Input: signature (base58), cluster selection, optional custom RPC.
+- Validate: check base58 and reasonable length, reject invalid chars.
 - Fetch: `connection.getTransaction(signature, { maxSupportedTransactionVersion: 0, commitment: 'confirmed' })`.
-- Chuẩn hóa: tạo object kết quả gồm summary, accounts, instructions, transfers, logs.
-- Hiển thị: SummaryCard + Tabs (Instructions / Transfers / Logs / Accounts).
-- Chia sẻ: sync URL `?tx=...&cluster=...`.
-- Cache: React Query cache theo `[cluster, signature]`.
+- Normalize: produce a result object with summary, accounts, instructions, transfers, logs.
+- Render: SummaryCard + Tabs (Instructions / Transfers / Logs / Accounts).
+- Share: sync URL `?tx=...&cluster=...` for shareable links.
+- Cache: React Query keyed by `[cluster, signature]`.
 
-## Định nghĩa dữ liệu (TypeScript – gợi ý)
+## Data Model (TypeScript – suggestion)
 ```ts
 export type Cluster = 'mainnet-beta' | 'devnet' | 'testnet';
 
@@ -63,8 +65,8 @@ export type TxStatus = 'success' | 'fail' | 'unknown';
 export interface TxSummary {
   signature: string;
   slot: number;
-  blockTime: number | null; // epoch seconds hoặc null
-  status: TxStatus;         // dựa trên meta.err
+  blockTime: number | null; // epoch seconds or null
+  status: TxStatus;         // based on meta.err
   feeLamports: number;      // meta.fee
   feePayer: string;         // public key
 }
@@ -72,20 +74,20 @@ export interface TxSummary {
 export interface InstructionItem {
   index: number;
   programId: string;
-  programName?: string;     // map từ well-known program IDs
-  type?: string;            // nếu parse được (SPL Token, System)
+  programName?: string;     // mapped from well-known program IDs
+  type?: string;            // if decoded (SPL Token, System)
   accounts: string[];
   params?: Record<string, unknown>;
-  inner?: InstructionItem[]; // inner instructions (nếu muốn hiển thị lồng)
+  inner?: InstructionItem[]; // inner instructions
 }
 
 export type TransferKind = 'SOL' | 'SPL';
 
 export interface TransferItem {
   kind: TransferKind;
-  amount: string;           // dạng string đã format hoặc lamports/raw + decimals
-  decimals?: number;        // cho SPL
-  mint?: string;            // cho SPL
+  amount: string;           // formatted string, or raw + decimals
+  decimals?: number;        // for SPL
+  mint?: string;            // for SPL
   sender: string;
   receiver: string;
 }
@@ -105,79 +107,79 @@ export interface LogLine {
 }
 ```
 
-## Parse chiến lược (MVP)
+## Parsing Strategy (MVP)
 - Summary:
-  - `slot`, `blockTime` → format bằng dayjs; handle null.
-  - `status` từ `meta.err` (null → success).
-  - `feeLamports` từ `meta.fee`; `feePayer` từ message/loaded addresses.
+  - `slot`, `blockTime` → format via `dayjs`; handle null.
+  - `status` from `meta.err` (null → success).
+  - `feeLamports` from `meta.fee`; `feePayer` from message/loaded addresses.
 - Instructions:
-  - Liệt kê từng instruction: `programId`, accounts, và cố gắng nhận diện program quen thuộc (System, SPL Token, Memo, Stake, Vote).
-  - Inner instructions: hỗ trợ expand/collapse (optional ở MVP).
+  - List each instruction: `programId`, accounts, and attempt to identify common programs (System, SPL Token, Memo, Stake, Vote).
+  - Inner instructions: optional expand/collapse in UI.
 - Transfers:
-  - SOL: dựa vào chênh lệch `preBalances`/`postBalances` (trừ fee) hoặc nhận diện `SystemProgram.transfer`.
-  - SPL: dựa `preTokenBalances`/`postTokenBalances` (group theo `owner + mint`).
+  - SOL: use `preBalances` vs `postBalances` delta (minus fee) or detect `SystemProgram.transfer`.
+  - SPL: use `preTokenBalances` vs `postTokenBalances` (group by `owner + mint`).
 - Logs:
-  - Hiển thị `meta.logMessages` theo dòng, đánh dấu error nếu có `program failed to complete`.
-- Mapping program IDs (ví dụ):
+  - Render `meta.logMessages` line by line; highlight errors (e.g., `program failed to complete`).
+- Program ID mapping (examples):
   - System Program: `11111111111111111111111111111111`
   - SPL Token: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`
   - Memo: `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`
 
-## Xử lý lỗi & Edge cases
-- Signature không hợp lệ → báo lỗi sớm, không gọi RPC.
-- `getTransaction` trả về `null` → gợi ý kiểm tra cluster hoặc độ mới của tx.
-- Versioned tx (v0) vẫn ok với `maxSupportedTransactionVersion: 0`, nhưng account label có thể thiếu nếu không resolve address tables (có thể bổ sung sau MVP).
-- `blockTime` có thể null → hiển thị `N/A`.
-- Rate limit RPC → hiển thị hướng dẫn dùng custom RPC.
+## Errors & Edge Cases
+- Invalid signature → fail fast before RPC call.
+- `getTransaction` returns `null` → suggest checking cluster or age of tx.
+- Versioned tx (v0) works with `maxSupportedTransactionVersion: 0`, but account labels may be incomplete without resolving address tables (can add later).
+- `blockTime` may be null → display `N/A`.
+- RPC rate limiting → suggest custom RPC.
 
 ## UI/UX
-- Layout: Input ở trên, kết quả dưới; SummaryCard nổi bật slot/time/status/fee/fee payer.
+- Layout: input on top, results below; SummaryCard highlights slot/time/status/fee/fee payer.
 - Tabs: Instructions / Transfers / Logs / Accounts.
-- Badge/Tag: tô màu theo program, highlight fee payer/sender/receiver.
-- Skeleton khi loading; toast khi lỗi; copy-to-clipboard cho địa chỉ/signature.
+- Badges: color by program; highlight fee payer/sender/receiver.
+- Loading skeletons; error toasts; copy‑to‑clipboard for addresses/signature.
 - Dark mode (optional, Tailwind).
 
-## Testing & Mẫu dữ liệu
-- Thêm danh sách signature mẫu (mainnet/devnet) để thử nhanh (đặt trong `Note.md` hoặc `README.md`).
-- Unit cho utils parse (nếu thêm Jest/Vitest):
-  - parseSummary, parseTransfers (delta balances), classify logs.
+## Testing & Sample Data
+- Keep a list of sample signatures (mainnet/devnet) to quickly test.
+- Unit tests for parse utils (if adding Jest/Vitest):
+  - `parseSummary`, `parseTransfers` (balance deltas), log classification.
 
-## Hiệu năng
-- Debounce input, cancel request khi signature thay đổi.
-- React Query: staleTime ngắn (ví dụ 30–60s), retry hợp lý.
+## Performance
+- Debounce input; cancel in‑flight requests when signature changes.
+- React Query: short `staleTime` (e.g., 30–60s) and sensible retries.
 
 ## MVP Checklist
-- [ ] InputForm: nhập signature, chọn cluster, optional custom RPC.
-- [ ] Validate signature base58, feedback lỗi.
-- [ ] Gọi `getTransaction` và xử lý loading/error.
+- [ ] InputForm: signature input, cluster selector, optional custom RPC.
+- [ ] Validate base58 signature with user feedback.
+- [ ] Call `getTransaction` with loading/error states.
 - [ ] SummaryCard: slot, time, status, fee, fee payer.
-- [ ] InstructionList: programId → tên, accounts.
-- [ ] TransferList: SOL + SPL bằng delta balances.
-- [ ] LogViewer: hiển thị log, highlight error.
-- [ ] Share link `?tx=...&cluster=...`.
-- [ ] Lưu history gần đây (localStorage, 5–10 mục).
+- [ ] InstructionList: programId → friendly name, accounts.
+- [ ] TransferList: SOL + SPL via balance deltas.
+- [ ] LogViewer: render logs, highlight errors.
+- [ ] Shareable link `?tx=...&cluster=...`.
+- [ ] Recent history in `localStorage` (10 items).
 
-## Mở rộng (Backlog)
-- [ ] Decode sâu SPL-Token (Instruction type & params).
-- [ ] Hỗ trợ import Anchor IDL để decode event/log.
-- [ ] Resolve Address Lookup Tables cho tx v0 để label accounts đầy đủ.
-- [ ] Export JSON/CSV từ view Transfers/Instructions.
-- [ ] PWA: cache offline phần history.
-- [ ] i18n EN/VI switch.
+## Backlog
+- [ ] Deeper SPL‑Token decoding (instruction types & params).
+- [ ] Import Anchor IDL to decode events/logs.
+- [ ] Resolve Address Lookup Tables for v0 tx to label accounts fully.
+- [ ] Export JSON/CSV from Transfers/Instructions views.
+- [ ] PWA: cache a local history view.
+- [ ] i18n EN/VI toggle.
 
-## Quyết định cần chốt (nhờ bạn xác nhận)
-- Cluster mặc định: `mainnet-beta` hay nhớ lần gần nhất?
-- Có bật ô nhập custom RPC và lưu local không?
-- Dùng React Query hay tự quản lý state/fetch (Zustand)?
-- UI thuần Tailwind hay thêm shadcn/ui?
-- Giới hạn lịch sử: 5, 10 hay 20 signature gần nhất?
+## Decisions
+- Default cluster: `mainnet-beta` and remember last used.
+- Custom RPC input: enabled and persisted locally.
+- State/fetch: React Query.
+- UI library: pure Tailwind (no extra component lib initially).
+- History size: 10 recent signatures.
 
-## Kế hoạch triển khai (đề xuất)
-1) Flatten thư mục dự án, cài deps nền tảng (Tailwind, React Query, dayjs).
-2) Tạo utils `getTransactionDetails` + các hàm parse summary/transfers/logs.
-3) Scaffold UI: InputForm, SummaryCard, Tabs và từng view rỗng.
-4) Kết nối dữ liệu thật + handle lỗi/edge cases.
-5) Bổ sung share link, history, polish UI và deploy Vercel.
+## Implementation Plan (proposed)
+1) Flatten the project, install base deps (Tailwind, React Query, dayjs).
+2) Create `getTransactionDetails` util + parse helpers (summary/transfers/logs).
+3) Scaffold UI: InputForm, SummaryCard, Tabs and empty views.
+4) Wire real data and handle errors/edge cases.
+5) Add shareable link, recent history, polish UI, and deploy to Vercel.
 
 ---
-Cập nhật file này khi chốt quyết định hoặc thay đổi hướng triển khai để cả team nắm chung.
+Keep this file updated as decisions are made or plans change so the team stays aligned.
